@@ -1,8 +1,16 @@
 /* eslint-disable react/no-unused-prop-types */
-import React from "react";
+import React, { useEffect, useCallback } from "react";
 import { useInterval } from "../hooks/use-intervals";
 import { Button } from "./button";
 import { Timer } from "./timer";
+import { secondsToTime } from "../utils/seconds-to-time";
+
+
+const bellStart = require ('../sounds/bell-start.mp3')
+const bellFinish = require ('../sounds/bell-finish.mp3')
+
+const audioStartWorking = new Audio(bellStart)
+const audioFinishWork = new Audio(bellFinish)
 
 interface Props {
     pomodoroTime: number;
@@ -13,25 +21,82 @@ interface Props {
 
 export function PomodoroTimer(props: Props): JSX.Element {
     const[mainTime, setMainTime] = React.useState(props.pomodoroTime);
+    const[timeCounting, setTimeCounting] = React.useState(false);
+    const[working, setWorking] = React.useState(false);
+    const[resting, setResting] = React.useState(false);
+    const[cyclesQt, setCyclesQt] = React.useState(
+        new Array(props.cycles - 1).fill(true));
 
+    const[completedCycles , setCompletedCycles] = React.useState(0);  
+    const[fullWorkingTime , setFullWorkingTime] = React.useState(0); 
+    const[pomodorosQt , setPomodorosQt] = React.useState(0);  
+
+    
     useInterval(() => {
         setMainTime(mainTime - 1);
-    }, 1000)
+        if (working) setFullWorkingTime(fullWorkingTime + 1)
+    }, timeCounting ? 1000 : null );
+
+    const configWork = useCallback(() => {
+        setTimeCounting(true);
+        setWorking(true);
+        setResting(false);
+        setMainTime(props.pomodoroTime);
+        audioStartWorking.play()
+
+    },[setTimeCounting, setWorking, setResting, setMainTime, props.pomodoroTime]);
+
+    const configRest = useCallback((long: boolean) => {
+        setTimeCounting(true);
+        setWorking(false)
+        setResting(true)
+
+        if(long) {
+            setMainTime(props.longRestTime)
+        } else {
+            setMainTime(props.shortRestTime)
+        }
+
+        audioFinishWork.play()
+
+    },[setWorking, setResting,setMainTime, props.longRestTime, props.shortRestTime]);
+
+    useEffect(() => {
+        if(working) document.body.classList.add('working')
+        if(resting) document.body.classList.remove('working');
+
+        if(mainTime > 0) return;
+        if(working && cyclesQt.length > 0) {
+            configRest(false);
+            cyclesQt.pop();
+        } else if (working && cyclesQt.length <= 0) {
+            configRest(true);
+            setCyclesQt(new Array(props.cycles - 1).fill(true));
+            setCompletedCycles(completedCycles + 1);
+        }
+            if(working) setPomodorosQt(pomodorosQt + 1);
+            if(resting) configWork();
+
+    },  [resting, working, mainTime, cyclesQt, pomodorosQt, configWork, configRest, props.cycles, completedCycles]);
+
 
     return <div className="pomodoro">
-        <h2>You are: working</h2>
+        <h2>You are: {working? 'Working' : 'Resting'} </h2>
         <Timer mainTime={mainTime} />
 
         <div className="controls">
-            <Button text="teste" onClick={() => console.log(1)} />
-            <Button text="teste" onClick={() => console.log(1)} />
-            <Button text="teste" onClick={() => console.log(1)} />
+            <Button text="Work" onClick={() => configWork()} />
+            <Button text="Rest" onClick={() => configRest(false)} />
+            <Button 
+            className= {!working && !resting ? 'hidden' : ''}
+            text={timeCounting ? 'Pause' : 'Play'} 
+            onClick={() => setTimeCounting(!timeCounting)} />
         </div>
 
         <div className="datails">
-            <p>Testando: ueihauheuiahui uah iuehuiaheuiha </p>
-            <p>Testando: ueihauheuiahui uah iuehuiaheuiha </p>
-            <p>Testando: ueihauheuiahui uah iuehuiaheuiha </p>
+            <p>Completed Cycles {completedCycles} </p>
+            <p>Worked Hours {secondsToTime(fullWorkingTime)} </p>
+            <p>Completed Pomodoro {pomodorosQt} </p>
         </div>
 
     </div>
